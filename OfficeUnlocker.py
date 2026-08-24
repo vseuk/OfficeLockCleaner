@@ -23,21 +23,19 @@ try:
 except ImportError:
     HAS_DND = False
 
-APP_NAME = "UnlockR7"
-# Логи в папке TEMP (всегда доступно)
-LOG_DIR = Path(os.environ.get('TEMP', '.')) / 'UnlockR7_Logs'
+APP_NAME = "OfficeUnlocker"
+LOG_DIR = Path(os.environ.get('TEMP', '.')) / 'OfficeUnlocker_Logs'
 LOG_DIR.mkdir(exist_ok=True)
 
 
-class UnlockR7App:
+class OfficeUnlockerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{APP_NAME} – Снятие блокировки Р7-Офис")
+        self.root.title(f"{APP_NAME} – Удаление блокировок офисных файлов")
         self.root.geometry("740x520")
         self.root.minsize(650, 400)
         self.root.resizable(True, True)
 
-        # Проверка прав администратора
         self.is_admin = self.check_admin()
         if not self.is_admin:
             messagebox.showwarning(
@@ -51,17 +49,15 @@ class UnlockR7App:
         self.setup_styles()
         self.setup_logging()
         self.logger.info("=" * 60)
-        self.logger.info(f"Запуск {APP_NAME} v2.3")
+        self.logger.info(f"Запуск {APP_NAME} v2.4")
         self.logger.info(f"Права администратора: {self.is_admin}")
 
         self.processing = False
         self.build_ui()
         self.setup_hotkeys()
 
-        # Глобальный перехват исключений
         sys.excepthook = self.global_exception_handler
 
-    # ---------- Глобальный обработчик ошибок ----------
     def global_exception_handler(self, exc_type, exc_value, exc_traceback):
         error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
         self.logger.critical(f"Необработанное исключение:\n{error_msg}")
@@ -70,9 +66,7 @@ class UnlockR7App:
             f"Программа столкнулась с ошибкой:\n\n{exc_value}\n\n"
             "Подробности записаны в лог-файл."
         )
-        # Не завершаем программу, чтобы пользователь мог сохранить данные
 
-    # ---------- Вспомогательные методы ----------
     def check_admin(self):
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
@@ -81,7 +75,6 @@ class UnlockR7App:
 
     def set_icon(self):
         try:
-            # Если иконка лежит рядом с exe
             base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.argv[0]))
             icon_path = Path(base_path) / "icon.ico"
             if icon_path.exists():
@@ -110,7 +103,7 @@ class UnlockR7App:
         }
 
     def setup_logging(self):
-        log_file = LOG_DIR / f'unlock_r7_{datetime.now().strftime("%Y%m%d")}.log'
+        log_file = LOG_DIR / f'unlock_office_{datetime.now().strftime("%Y%m%d")}.log'
         logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -121,21 +114,20 @@ class UnlockR7App:
         )
         self.logger = logging.getLogger(__name__)
 
-    # ---------- Интерфейс ----------
     def build_ui(self):
         main_frame = ttk.Frame(self.root, padding="15")
         main_frame.pack(fill='both', expand=True)
 
         tk.Label(
             main_frame,
-            text="Снятие блокировки файлов Р7-Офис",
+            text="Удаление блокировок офисных файлов",
             font=self.fonts['title'],
             fg=self.colors['text_primary']
         ).pack(pady=(0, 5))
 
         tk.Label(
             main_frame,
-            text="Удаляет временные файлы блокировки (~$…, .~lock.…), оставшиеся после аварийного завершения",
+            text="Удаляет временные файлы блокировки (~$…, .~lock.…) для Microsoft Office, Р7-Офис, LibreOffice и др.",
             font=self.fonts['small'],
             fg=self.colors['text_secondary']
         ).pack(pady=(0, 15))
@@ -316,42 +308,70 @@ class UnlockR7App:
             path = path[1:-1]
         return path
 
-    # ---------- Процессы Р7 ----------
-    def kill_r7_processes(self):
+    # ---------- Универсальное завершение офисных процессов ----------
+    def kill_office_processes(self):
+        """Завершает все процессы популярных офисных пакетов."""
+        office_masks = [
+            'r7*',          # Р7-Офис
+            'winword*',     # Microsoft Word
+            'excel*',       # Microsoft Excel
+            'powerpnt*',    # Microsoft PowerPoint
+            'soffice*'      # LibreOffice / OpenOffice
+        ]
         try:
-            cmd_check = ['tasklist', '/fi', 'imagename eq r7*', '/fo', 'csv']
-            result = subprocess.run(
-                cmd_check,
-                capture_output=True,
-                text=True,
-                timeout=5,
-                creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-            )
-            if 'r7' not in result.stdout.lower():
-                self.logger.info("Процессы Р7 не найдены")
-                return True
-
-            self.logger.info("Обнаружены процессы Р7, завершаем...")
-            for attempt in range(3):
-                subprocess.run(
-                    ['taskkill', '/f', '/im', 'r7*'],
-                    capture_output=True,
-                    timeout=5,
-                    creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-                )
-                time.sleep(1)
-                check = subprocess.run(
+            # Проверяем, есть ли хоть один процесс
+            found_any = False
+            for mask in office_masks:
+                cmd_check = ['tasklist', '/fi', f'imagename eq {mask}', '/fo', 'csv']
+                result = subprocess.run(
                     cmd_check,
                     capture_output=True,
                     text=True,
                     timeout=5,
                     creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
                 )
-                if 'r7' not in check.stdout.lower():
-                    self.logger.info("Все процессы Р7 завершены")
+                # Проверяем, что в выводе есть имя процесса (без звёздочки)
+                base_name = mask.rstrip('*')
+                if base_name.lower() in result.stdout.lower():
+                    found_any = True
+                    break
+
+            if not found_any:
+                self.logger.info("Процессы офисных пакетов не найдены")
+                return True
+
+            self.logger.info("Обнаружены процессы офисных пакетов, завершаем...")
+            for attempt in range(3):
+                for mask in office_masks:
+                    subprocess.run(
+                        ['taskkill', '/f', '/im', mask],
+                        capture_output=True,
+                        timeout=5,
+                        creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                    )
+                time.sleep(1)
+
+                # Проверяем, остались ли процессы
+                still_running = False
+                for mask in office_masks:
+                    check = subprocess.run(
+                        ['tasklist', '/fi', f'imagename eq {mask}', '/fo', 'csv'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                    )
+                    base_name = mask.rstrip('*')
+                    if base_name.lower() in check.stdout.lower():
+                        still_running = True
+                        break
+
+                if not still_running:
+                    self.logger.info("Все процессы офисных пакетов завершены")
                     return True
                 self.logger.warning(f"Попытка {attempt+1}: процессы ещё есть")
-            self.logger.warning("Не удалось завершить все процессы Р7, продолжаем удаление")
+
+            self.logger.warning("Не удалось завершить все процессы, продолжаем удаление")
             return False
         except Exception as e:
             self.logger.error(f"Ошибка при завершении процессов: {e}")
@@ -409,7 +429,7 @@ class UnlockR7App:
         except Exception as e:
             self.logger.debug(f"os.remove не удался: {e}")
 
-        # 2. PowerShell (без окон)
+        # 2. PowerShell
         try:
             ps_cmd = [
                 'powershell', '-Command',
@@ -440,7 +460,7 @@ class UnlockR7App:
         except Exception as e:
             self.logger.debug(f"Переименование не удалось: {e}")
 
-        # 4. cmd (скрыто)
+        # 4. cmd
         try:
             cmd = ['cmd', '/c', 'del', '/f', '/q', filepath]
             subprocess.run(
@@ -457,7 +477,7 @@ class UnlockR7App:
 
         if os.path.exists(filepath):
             return False, "Не удалось удалить (файл занят или недостаточно прав)"
-        return True, "Удалён (метод не определён, но файл исчез)"
+        return True, "Удалён"
 
     # ---------- Основная операция ----------
     def unlock_all(self):
@@ -471,7 +491,7 @@ class UnlockR7App:
 
         msg = f"Будет обработано {len(file_paths)} записей.\n\n"
         msg += "Программа попытается:\n"
-        msg += "• Завершить все процессы Р7-Офис\n"
+        msg += "• Завершить все процессы офисных пакетов (Word, Excel, PowerPoint, Р7, LibreOffice)\n"
         msg += "• Найти и удалить связанные файлы блокировки\n"
         msg += "• Если запись является файлом блокировки – удалить его напрямую\n\n"
         msg += "Продолжить?"
@@ -484,9 +504,9 @@ class UnlockR7App:
         self.progress.start(10)
 
         try:
-            self.status_var.set("Завершение процессов Р7-Офис...")
+            self.status_var.set("Завершение процессов офисных пакетов...")
             self.root.update()
-            self.kill_r7_processes()
+            self.kill_office_processes()
 
             total = len(file_paths)
             success_count = 0
@@ -533,7 +553,7 @@ class UnlockR7App:
                 if len(error_list) > 5:
                     err_msg += f"\n... и ещё {len(error_list)-5} ошибок"
                 err_msg += "\n\nРекомендации:\n"
-                err_msg += "• Закройте Р7-Офис вручную\n"
+                err_msg += "• Закройте офисные программы вручную\n"
                 err_msg += "• Запустите программу от имени администратора\n"
                 err_msg += "• Проверьте права доступа к папке"
                 messagebox.showerror("Частичный успех", err_msg)
@@ -568,6 +588,6 @@ if __name__ == "__main__":
         root = TkinterDnD.Tk()
     else:
         root = tk.Tk()
-    app = UnlockR7App(root)
+    app = OfficeUnlockerApp(root)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
