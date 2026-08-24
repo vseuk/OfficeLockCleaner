@@ -23,8 +23,8 @@ try:
 except ImportError:
     HAS_DND = False
 
-APP_NAME = "OfficeUnlocker"
-LOG_DIR = Path(os.environ.get('TEMP', '.')) / 'OfficeUnlocker_Logs'
+APP_NAME = "OfficeLockCleaner"
+LOG_DIR = Path(os.environ.get('TEMP', '.')) / 'OfficeLockCleaner_Logs'
 LOG_DIR.mkdir(exist_ok=True)
 
 
