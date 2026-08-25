@@ -1,38 +1,48 @@
+[Русская версия](README.ru.md)
+
 # OfficeLockCleaner
 
-Утилита для принудительного удаления «фантомных» файлов блокировки, которые офисные пакеты (Microsoft Office, Р7-Офис, LibreOffice, OpenOffice и др.) оставляют после аварийного завершения (зависания, вылета, сбоя питания). Работает с локальными и сетевыми папками, не требует установки.
+Utility for forced removal of "phantom" lock files left by office suites (Microsoft Office, R7-Office, LibreOffice, OpenOffice, etc.) after an abnormal termination (crash, freeze, power outage). Works with local and network folders, no installation required.
 
-## Проблема
+## Problem
 
-Любой современный офисный пакет при открытии документа создаёт временный файл блокировки, чтобы предотвратить одновременное редактирование. Обычно это:
+Any modern office suite creates a temporary lock file when a document is opened to prevent simultaneous editing. Typically these are:
 
-- `~$имя_файла.расширение`
-- `.~lock.имя_файла.расширение#`
+- `~$filename.extension`
+- `.~lock.filename.extension#`
 
-После некорректного завершения процесса (например, при зависании) эти файлы остаются. При следующей попытке открыть документ офис сообщает: «Файл уже открыт другим пользователем» или «Нет доступа». Вручную через Проводник файл часто не удаляется из-за занятости или недостаточных прав.
+After an abnormal process termination (e.g., hang), these files remain. On the next attempt to open the document, the office suite reports: *"The file is already open by another user"* or *"Access denied"*. Manual deletion through File Explorer often fails due to the file being locked or insufficient permissions.
 
-## Что делает программа
+## What the program does
 
-- Завершает все запущенные процессы офисных пакетов (по маске `r7*`, `winword*`, `excel*`, `powerpnt*`, `soffice*` и др.).
-- Находит файлы блокировки, соответствующие указанному файлу (или группе файлов), включая варианты с обрезанными именами.
-- Если в список добавлен сам файл блокировки (например, `~$Отчёт.xlsx`), удаляет его напрямую.
-- Использует несколько методов удаления: `os.remove`, PowerShell, переименование, `cmd del` – пока файл не будет удалён.
-- Всё выполняется без мелькания окон командной строки.
+- Terminates all running office processes (by masks: `r7*`, `winword*`, `excel*`, `powerpnt*`, `soffice*`, etc.).
+- Finds lock files corresponding to the specified file(s), including truncated name variants.
+- If the lock file itself (e.g., `~$Report.xlsx`) is added to the list, it deletes it directly.
+- Uses several removal methods: `os.remove`, PowerShell, renaming, `cmd del` – retrying until the file is deleted.
+- All operations run silently – no command prompt windows appear.
 
-## Как использовать
+## Usage
 
-1. **Запустите `OfficeUnlocker.exe`** (или `python OfficeUnlocker.py`).
-2. Добавьте файлы в список:
-   - **Добавить файл** – выбрать один или несколько файлов (можно оригиналы, можно сами блокировки).
-   - **Добавить папку** – программа просканирует выбранную папку и все подпапки, найдёт все файлы, начинающиеся с `~$` или `.~lock.`, и добавит их в список.
-   - **Перетащите** файлы или папки прямо в окно (если установлен модуль `tkinterdnd2`).
-   - Можно **редактировать список вручную** – вставлять пути, удалять строки, править.
-3. Нажмите **«Разблокировать»**.
-4. Программа завершит процессы офиса, найдёт и удалит все связанные блокировочные файлы.
-5. По окончании покажет отчёт – что удалось, что нет.
+1. Run `OfficeLockCleaner.exe` (or `python main.py`).
+2. Add files to the list:
+   - **Menu File → Add Files...** – select one or more files (originals or lock files themselves).
+   - **Menu File → Add Folder...** – the program will scan the selected folder and all subfolders, find all files starting with `~$` or `.~lock.`, and add them to the list.
+   - **Drag and drop** files or folders directly into the window (requires `tkinterdnd2`).
+   - You can also **edit the list manually** – paste paths, remove lines, modify entries.
+3. Click the **Unlock** button (or `Ctrl+U`).
+4. The program will terminate office processes, find and delete all associated lock files.
+5. Upon completion, a report shows which files were successfully removed and which failed.
 
-**Горячие клавиши:**
-- `Ctrl+O` – добавить файлы
-- `Ctrl+F` – добавить папку
-- `Ctrl+U` – разблокировать
-- `Esc` – выход
+**Keyboard shortcuts:**
+- `Ctrl+O` – add files
+- `Ctrl+F` – add folder
+- `Ctrl+U` – unlock
+- `Esc` – exit
+
+## Building from source
+
+Requirements: Python 3.7+, tkinter (included in standard Python distribution).
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed --name OfficeLockCleaner --add-data "lang;lang" main.py
